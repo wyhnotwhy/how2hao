@@ -4,15 +4,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import data.model.UserLocation
 import ui.auth.AuthScreen
+import ui.finance.FinanceScreen
 import ui.home.HomeScreen
 import ui.location.LocationPickerScreen
 import ui.settings.SettingsScreen
+import ui.task.AddTaskScreen
+import ui.task.TaskScreen
 
 /**
  * 应用主入口
@@ -24,7 +26,8 @@ fun App() {
         // 页面路由状态
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Auth) }
         var currentLocation by remember { mutableStateOf(UserLocation("北京市", "北京市")) }
-        
+        var currentTab by remember { mutableStateOf(BottomNavTab.Home) }
+
         when (currentScreen) {
             is Screen.Auth -> {
                 AuthScreen(
@@ -33,39 +36,46 @@ fun App() {
                     }
                 )
             }
-            is Screen.Home -> {
+            is Screen.Home,
+            is Screen.Task,
+            is Screen.Finance,
+            is Screen.Settings -> {
                 MainScreen(
-                    currentTab = BottomNavTab.Home,
+                    currentTab = when (currentScreen) {
+                        is Screen.Home -> BottomNavTab.Home
+                        is Screen.Task -> BottomNavTab.Task
+                        is Screen.Finance -> BottomNavTab.Finance
+                        is Screen.Settings -> BottomNavTab.Settings
+                        else -> BottomNavTab.Home
+                    },
                     currentLocation = currentLocation,
                     onLocationChange = { location ->
                         currentLocation = location
                     },
                     onTabChange = { tab ->
-                        when (tab) {
-                            BottomNavTab.Home -> currentScreen = Screen.Home
-                            BottomNavTab.Settings -> currentScreen = Screen.Settings
+                        currentTab = tab
+                        currentScreen = when (tab) {
+                            BottomNavTab.Home -> Screen.Home
+                            BottomNavTab.Task -> Screen.Task
+                            BottomNavTab.Finance -> Screen.Finance
+                            BottomNavTab.Settings -> Screen.Settings
                         }
+                    },
+                    onNavigateToAddTask = {
+                        currentScreen = Screen.AddTask
                     },
                     onLogout = {
                         currentScreen = Screen.Auth
                     }
                 )
             }
-            is Screen.Settings -> {
-                MainScreen(
-                    currentTab = BottomNavTab.Settings,
-                    currentLocation = currentLocation,
-                    onLocationChange = { location ->
-                        currentLocation = location
+            is Screen.AddTask -> {
+                AddTaskScreen(
+                    onBackClick = {
+                        currentScreen = Screen.Task
                     },
-                    onTabChange = { tab ->
-                        when (tab) {
-                            BottomNavTab.Home -> currentScreen = Screen.Home
-                            BottomNavTab.Settings -> currentScreen = Screen.Settings
-                        }
-                    },
-                    onLogout = {
-                        currentScreen = Screen.Auth
+                    onSaveClick = {
+                        currentScreen = Screen.Task
                     }
                 )
             }
@@ -94,10 +104,11 @@ fun MainScreen(
     currentLocation: UserLocation,
     onLocationChange: (UserLocation) -> Unit,
     onTabChange: (BottomNavTab) -> Unit,
+    onNavigateToAddTask: () -> Unit,
     onLogout: () -> Unit
 ) {
     var showLocationPicker by remember { mutableStateOf(false) }
-    
+
     if (showLocationPicker) {
         LocationPickerScreen(
             currentLocation = currentLocation,
@@ -120,6 +131,18 @@ fun MainScreen(
                         onClick = { onTabChange(BottomNavTab.Home) }
                     )
                     BottomNavigationItem(
+                        icon = { Icon(Icons.Default.CheckCircle, contentDescription = "任务") },
+                        label = { Text("任务") },
+                        selected = currentTab == BottomNavTab.Task,
+                        onClick = { onTabChange(BottomNavTab.Task) }
+                    )
+                    BottomNavigationItem(
+                        icon = { Icon(Icons.Default.AccountBalance, contentDescription = "财务") },
+                        label = { Text("财务") },
+                        selected = currentTab == BottomNavTab.Finance,
+                        onClick = { onTabChange(BottomNavTab.Finance) }
+                    )
+                    BottomNavigationItem(
                         icon = { Icon(Icons.Default.Settings, contentDescription = "设置") },
                         label = { Text("设置") },
                         selected = currentTab == BottomNavTab.Settings,
@@ -139,6 +162,14 @@ fun MainScreen(
                             }
                         )
                     }
+                    BottomNavTab.Task -> {
+                        TaskScreen(
+                            onAddTaskClick = onNavigateToAddTask
+                        )
+                    }
+                    BottomNavTab.Finance -> {
+                        FinanceScreen()
+                    }
                     BottomNavTab.Settings -> {
                         SettingsScreen(
                             onLogout = onLogout
@@ -156,6 +187,9 @@ fun MainScreen(
 sealed class Screen {
     object Auth : Screen()
     object Home : Screen()
+    object Task : Screen()
+    object AddTask : Screen()
+    object Finance : Screen()
     object Settings : Screen()
     object LocationPicker : Screen()
 }
@@ -165,5 +199,7 @@ sealed class Screen {
  */
 enum class BottomNavTab {
     Home,
+    Task,
+    Finance,
     Settings
 }

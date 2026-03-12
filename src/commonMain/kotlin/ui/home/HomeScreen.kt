@@ -1,5 +1,6 @@
 package ui.home
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import data.model.UserLocation
 import ui.components.CenteredTopBar
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     currentLocation: UserLocation,

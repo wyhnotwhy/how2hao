@@ -230,18 +230,36 @@ fun TimeSelector(
     val timeOptions = listOf("08:00", "09:00", "10:00", "14:00", "15:00", "18:00", "20:00", "21:00")
 
     Column {
-        // 快速选择
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            timeOptions.forEach { time ->
-                TimeChip(
-                    time = time,
-                    isSelected = selectedTime == time,
-                    onClick = { onTimeSelected(time) }
-                )
+        // 快速选择 - 使用两行显示
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 第一行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                timeOptions.take(4).forEach { time ->
+                    TimeChip(
+                        time = time,
+                        isSelected = selectedTime == time,
+                        onClick = { onTimeSelected(time) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // 第二行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                timeOptions.drop(4).forEach { time ->
+                    TimeChip(
+                        time = time,
+                        isSelected = selectedTime == time,
+                        onClick = { onTimeSelected(time) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -269,10 +287,11 @@ fun TimeSelector(
 fun TimeChip(
     time: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = if (isSelected)
             MaterialTheme.colors.primary
@@ -477,71 +496,4 @@ fun BankListItem(
     }
 }
 
-/**
- * 简单的 FlowRow 实现
- */
-@Composable
-fun FlowRow(
-    modifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
-    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
-    content: @Composable () -> Unit
-) {
-    Layout(
-        content = content,
-        modifier = modifier
-    ) { measurables, constraints ->
-        val hGapPx = 8.dp.roundToPx()
-        val vGapPx = 8.dp.roundToPx()
 
-        val rows = mutableListOf<List<androidx.compose.ui.layout.Placeable>>()
-        val rowWidths = mutableListOf<Int>()
-        val rowHeights = mutableListOf<Int>()
-
-        var rowMeasurables = mutableListOf<androidx.compose.ui.layout.Placeable>()
-        var rowWidth = 0
-        var rowHeight = 0
-
-        measurables.forEach { measurable ->
-            val placeable = measurable.measure(constraints)
-
-            if (rowWidth + placeable.width + if (rowMeasurables.isNotEmpty()) hGapPx else 0 > constraints.maxWidth) {
-                rows.add(rowMeasurables)
-                rowWidths.add(rowWidth)
-                rowHeights.add(rowHeight)
-                rowMeasurables = mutableListOf()
-                rowWidth = 0
-                rowHeight = 0
-            }
-
-            rowMeasurables.add(placeable)
-            rowWidth += placeable.width + if (rowMeasurables.size > 1) hGapPx else 0
-            rowHeight = maxOf(rowHeight, placeable.height)
-        }
-
-        if (rowMeasurables.isNotEmpty()) {
-            rows.add(rowMeasurables)
-            rowWidths.add(rowWidth)
-            rowHeights.add(rowHeight)
-        }
-
-        val height = rowHeights.sum() + (rowHeights.size - 1) * vGapPx
-
-        layout(constraints.maxWidth, height) {
-            var y = 0
-            rows.forEachIndexed { index, row ->
-                var x = when (horizontalArrangement) {
-                    Arrangement.Start -> 0
-                    Arrangement.End -> constraints.maxWidth - rowWidths[index]
-                    Arrangement.Center -> (constraints.maxWidth - rowWidths[index]) / 2
-                    else -> 0
-                }
-                row.forEach { placeable ->
-                    placeable.placeRelative(x, y)
-                    x += placeable.width + hGapPx
-                }
-                y += rowHeights[index] + vGapPx
-            }
-        }
-    }
-}

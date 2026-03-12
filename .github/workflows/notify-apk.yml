@@ -1,0 +1,44 @@
+name: Notify APK Build Success
+
+on:
+  workflow_run:
+    workflows: ["Build APK"]
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+    - name: Get APK Download URL
+      id: get-url
+      run: |
+        RUN_ID="${{ github.event.workflow_run.id }}"
+        echo "Build succeeded for run: $RUN_ID"
+        echo "download_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
+        echo "artifact_url=https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" >> $GITHUB_OUTPUT
+    
+    - name: Display Download Info
+      run: |
+        echo "========================================"
+        echo "✅ APK 构建成功！"
+        echo "========================================"
+        echo ""
+        echo "📱 下载地址："
+        echo "${{ steps.get-url.outputs.download_url }}"
+        echo ""
+        echo "📦 构建产物 API："
+        echo "${{ steps.get-url.outputs.artifact_url }}"
+        echo ""
+        echo "========================================"
+        echo ""
+        echo "下载步骤："
+        echo "1. 访问上面的下载地址"
+        echo "2. 页面底部找到 'Artifacts' 部分"
+        echo "3. 点击 'app-debug' 下载 APK"
+        echo ""
+        echo "或直接访问："
+        echo "https://github.com/${{ github.repository }}/actions"
+        echo "========================================"

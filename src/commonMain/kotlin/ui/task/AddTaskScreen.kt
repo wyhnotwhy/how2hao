@@ -23,6 +23,7 @@ import data.model.TaskRepeatType
 import data.repository.BankRepository
 import data.repository.TaskRepository
 import ui.components.DatePickerDialog
+import ui.components.TimeSelectorButton
 import ui.components.TaskRepeatMode
 import ui.components.SimpleRepeatType
 import java.text.SimpleDateFormat
@@ -106,7 +107,7 @@ fun AddTaskScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            TimeSelector(
+            TimeSelectorButton(
                 selectedTime = reminderTime,
                 onTimeSelected = { reminderTime = it }
             )
@@ -230,57 +231,6 @@ private fun getWeekDayName(day: Int): String {
     return when (day) {
         1 -> "一"; 2 -> "二"; 3 -> "三"; 4 -> "四"; 5 -> "五"; 6 -> "六"; 7 -> "日"
         else -> ""
-    }
-}
-
-@Composable
-private fun TimeSelector(
-    selectedTime: String,
-    onTimeSelected: (String) -> Unit
-) {
-    val timeOptions = listOf("08:00", "09:00", "10:00", "14:00", "15:00", "18:00", "20:00", "21:00")
-
-    Column {
-        Text("提醒时间", style = MaterialTheme.typography.subtitle2, fontWeight = FontWeight.Medium)
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                timeOptions.take(4).forEach { time ->
-                    TimeChip(time = time, isSelected = selectedTime == time, onClick = { onTimeSelected(time) }, modifier = Modifier.weight(1f))
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                timeOptions.drop(4).forEach { time ->
-                    TimeChip(time = time, isSelected = selectedTime == time, onClick = { onTimeSelected(time) }, modifier = Modifier.weight(1f))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = selectedTime,
-            onValueChange = { if (it.length <= 5) onTimeSelected(it) },
-            label = { Text("自定义时间 (HH:mm)") },
-            placeholder = { Text("如: 09:30") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-    }
-}
-
-@Composable
-private fun TimeChip(time: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.surface,
-        border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.2f)) else null,
-        elevation = if (isSelected) 2.dp else 0.dp
-    ) {
-        Text(time, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.body2, color = if (isSelected) Color.White else MaterialTheme.colors.onSurface)
     }
 }
 

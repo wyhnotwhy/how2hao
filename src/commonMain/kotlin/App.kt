@@ -47,7 +47,9 @@ fun App() {
 
         val navigateTo: (Screen) -> Unit = { targetScreen ->
             if (currentScreen != targetScreen) {
-                if (currentScreen.isSecondaryScreen()) {
+                if (currentScreen is Screen.Main && targetScreen.isSecondaryScreen()) {
+                    navigationStack = navigationStack + currentScreen
+                } else if (currentScreen.isSecondaryScreen()) {
                     navigationStack = navigationStack + currentScreen
                 }
                 previousScreen = currentScreen

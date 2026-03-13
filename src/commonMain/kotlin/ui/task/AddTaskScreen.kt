@@ -226,7 +226,9 @@ fun AddTaskScreen(
     }
 }
 
+
 // 参与频控数据类
+data class FrequencyControl(
     val totalCount: Int,
     val cycleCount: Int
 )

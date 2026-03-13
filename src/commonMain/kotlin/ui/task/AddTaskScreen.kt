@@ -1,6 +1,5 @@
 package ui.task
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +17,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import data.model.Bank
-import data.model.TaskFrequency
+import data.model.TaskRepeatType
 import data.repository.BankRepository
+import ui.components.DatePickerDialog
+import ui.components.TaskRepeatMode
+import ui.components.SimpleRepeatType
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * 添加任务页面
@@ -32,11 +35,13 @@ fun AddTaskScreen(
     onSaveClick: () -> Unit
 ) {
     var title by remember { mutableStateOf("") }
-    var selectedFrequency by remember { mutableStateOf(TaskFrequency.DAILY) }
+    var selectedDate by remember { mutableStateOf<Long?>(null) }
+    var repeatMode by remember { mutableStateOf<TaskRepeatMode>(TaskRepeatMode.OneTime) }
     var reminderTime by remember { mutableStateOf("") }
     var selectedBank by remember { mutableStateOf<Bank?>(null) }
+    
+    var showDatePicker by remember { mutableStateOf(false) }
     var showBankPicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -81,21 +86,19 @@ fun AddTaskScreen(
                 label = { Text("任务标题") },
                 placeholder = { Text("请输入任务标题") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Default.Title, contentDescription = null)
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 频次选择
-            Text(
-                text = "执行频次",
-                style = MaterialTheme.typography.subtitle2,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            FrequencySelector(
-                selectedFrequency = selectedFrequency,
-                onFrequencySelected = { selectedFrequency = it }
+            // 日期选择
+            DateSelector(
+                selectedDate = selectedDate,
+                repeatMode = repeatMode,
+                onClick = { showDatePicker = true }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -128,6 +131,19 @@ fun AddTaskScreen(
             )
         }
 
+        // 日期选择弹窗
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismiss = { showDatePicker = false },
+                onDateSelected = { date, mode ->
+                    selectedDate = date
+                    repeatMode = mode
+                    showDatePicker = false
+                },
+                initialDate = selectedDate
+            )
+        }
+
         // 银行选择弹窗
         if (showBankPicker) {
             BankPickerDialog(
@@ -142,80 +158,103 @@ fun AddTaskScreen(
 }
 
 /**
- * 频次选择器
+ * 日期选择器显示
  */
 @Composable
-fun FrequencySelector(
-    selectedFrequency: TaskFrequency,
-    onFrequencySelected: (TaskFrequency) -> Unit
+private fun DateSelector(
+    selectedDate: Long?,
+    repeatMode: TaskRepeatMode,
+    onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        FrequencyOption(
-            text = "每天一次",
-            isSelected = selectedFrequency == TaskFrequency.DAILY,
-            onClick = { onFrequencySelected(TaskFrequency.DAILY) },
-            modifier = Modifier.weight(1f)
-        )
-        FrequencyOption(
-            text = "每周一次",
-            isSelected = selectedFrequency == TaskFrequency.WEEKLY,
-            onClick = { onFrequencySelected(TaskFrequency.WEEKLY) },
-            modifier = Modifier.weight(1f)
-        )
-        FrequencyOption(
-            text = "每月一次",
-            isSelected = selectedFrequency == TaskFrequency.MONTHLY,
-            onClick = { onFrequencySelected(TaskFrequency.MONTHLY) },
-            modifier = Modifier.weight(1f)
-        )
+    val displayText = when (repeatMode) {
+        is TaskRepeatMode.OneTime -> {
+            selectedDate?.let {
+                SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(it))
+            } ?: "选择日期"
+        }
+        is TaskRepeatMode.Simple -> {
+            when (repeatMode.type) {
+                SimpleRepeatType.DAILY -> "每天重复"
+                SimpleRepeatType.WEEKLY -> "每周重复"
+                SimpleRepeatType.MONTHLY -> "每月重复"
+                SimpleRepeatType.YEARLY -> "每年重复"
+            }
+        }
+        is TaskRepeatMode.AdvancedWeekly -> {
+            val days = repeatMode.days.sorted()
+            when {
+                days.size == 7 -> "每天重复"
+                days == listOf(1, 2, 3, 4, 5) -> "工作日重复"
+                days == listOf(6, 7) -> "周末重复"
+                else -> "每周${days.joinToString(",") { getWeekDayName(it) }}重复"
+            }
+        }
+        is TaskRepeatMode.AdvancedMonthly -> {
+            "每月${repeatMode.days.sorted().joinToString(",")}日重复"
+        }
+        is TaskRepeatMode.AdvancedYearly -> {
+            val months = repeatMode.months.sorted().joinToString(",") { "${it}月" }
+            val days = repeatMode.days.sorted().joinToString(",") { "${it}日" }
+            "每年${months}的${days}重复"
+        }
     }
-}
-
-/**
- * 频次选项
- */
-@Composable
-fun FrequencyOption(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected)
-            MaterialTheme.colors.primary.copy(alpha = 0.15f)
-        else
-            MaterialTheme.colors.surface,
-        border = if (isSelected)
-            null
-        else
-            androidx.compose.foundation.BorderStroke(
+    
+    Column {
+        Text(
+            text = "执行日期",
+            style = MaterialTheme.typography.subtitle2,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(8.dp),
+            border = androidx.compose.foundation.BorderStroke(
                 1.dp,
                 MaterialTheme.colors.onSurface.copy(alpha = 0.2f)
             ),
-        elevation = if (isSelected) 2.dp else 0.dp
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
+            elevation = 0.dp
         ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.body2,
-                color = if (isSelected)
-                    MaterialTheme.colors.primary
-                else
-                    MaterialTheme.colors.onSurface,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = null,
+                    tint = MaterialTheme.colors.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = displayText,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colors.onSurface.copy(alpha = 0.3f)
+                )
+            }
         }
+    }
+}
+
+private fun getWeekDayName(day: Int): String {
+    return when (day) {
+        1 -> "一"
+        2 -> "二"
+        3 -> "三"
+        4 -> "四"
+        5 -> "五"
+        6 -> "六"
+        7 -> "日"
+        else -> ""
     }
 }
 
@@ -223,7 +262,7 @@ fun FrequencyOption(
  * 时间选择器
  */
 @Composable
-fun TimeSelector(
+private fun TimeSelector(
     selectedTime: String,
     onTimeSelected: (String) -> Unit
 ) {
@@ -284,7 +323,7 @@ fun TimeSelector(
  * 时间芯片
  */
 @Composable
-fun TimeChip(
+private fun TimeChip(
     time: String,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -318,7 +357,7 @@ fun TimeChip(
  * 银行选择器
  */
 @Composable
-fun BankSelector(
+private fun BankSelector(
     selectedBank: Bank?,
     onBankSelected: (Bank?) -> Unit,
     onShowBankPicker: () -> Unit
@@ -397,7 +436,7 @@ fun BankSelector(
  * 银行选择弹窗
  */
 @Composable
-fun BankPickerDialog(
+private fun BankPickerDialog(
     onDismiss: () -> Unit,
     onBankSelected: (Bank) -> Unit
 ) {
@@ -443,7 +482,8 @@ fun BankPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(on
+Click = { onDismiss() }) {
                 Text("取消")
             }
         },
@@ -455,7 +495,7 @@ fun BankPickerDialog(
  * 银行列表项
  */
 @Composable
-fun BankListItem(
+private fun BankListItem(
     bank: Bank,
     onClick: () -> Unit
 ) {
@@ -495,5 +535,3 @@ fun BankListItem(
         }
     }
 }
-
-

@@ -367,7 +367,7 @@ private fun FrequencyControlSection(
                                     brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colors.primary)
                                 ) else ButtonDefaults.outlinedBorder
                             ) {
-                                Text("$count次", color = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface)
+                                Text("$count", color = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface)
                             }
                         }
                     }

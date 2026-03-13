@@ -26,16 +26,21 @@ fun DatePickerDialog(
     initialDate: Long? = null
 ) {
     var selectedMode by remember { mutableStateOf(DatePickerMode.ONE_TIME) }
-    var selectedDate by remember { mutableStateOf(initialDate ?: System.currentTimeMillis()) }
+    var selectedDate by remember { mutableStateOf(initialDate ?: getTodayStart()) }
     var simpleRepeatType by remember { mutableStateOf(SimpleRepeatType.DAILY) }
     
     var advancedWeekDays by remember { mutableStateOf<List<Int>>(emptyList()) }
     var advancedMonthDays by remember { mutableStateOf<List<Int>>(emptyList()) }
     var advancedMonths by remember { mutableStateOf<List<Int>>(emptyList()) }
     
-    // 日历状态
-    var currentYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
-    var currentMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
+    // 日历状态 - 使用Calendar处理
+    var displayCalendar by remember { mutableStateOf(Calendar.getInstance().apply {
+        if (initialDate != null) timeInMillis = initialDate
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -59,10 +64,8 @@ fun DatePickerDialog(
                     DatePickerMode.ONE_TIME -> {
                         CalendarView(
                             selectedDate = selectedDate,
-                            currentYear = currentYear,
-                            currentMonth = currentMonth,
-                            onYearChange = { currentYear = it },
-                            onMonthChange = { currentMonth = it },
+                            displayCalendar = displayCalendar,
+                            onDisplayCalendarChange = { displayCalendar = it },
                             onDateSelected = { selectedDate = it }
                         )
                     }
@@ -116,20 +119,44 @@ fun DatePickerDialog(
     )
 }
 
+// 获取今天0点时间戳
+private fun getTodayStart(): Long {
+    return Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+}
+
+// 比较两个日期是否同一天（忽略时间）
+private fun isSameDay(time1: Long, time2: Long): Boolean {
+    val cal1 = Calendar.getInstance().apply { timeInMillis = time1 }
+    val cal2 = Calendar.getInstance().apply { timeInMillis = time2 }
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+           cal1.get(Calendar.MONTH) == cal2.get(Calendar.MONTH) &&
+           cal1.get(Calendar.DAY_OF_MONTH) == cal2.get(Calendar.DAY_OF_MONTH)
+}
+
 @Composable
 private fun CalendarView(
     selectedDate: Long,
-    currentYear: Int,
-    currentMonth: Int,
-    onYearChange: (Int) -> Unit,
-    onMonthChange: (Int) -> Unit,
+    displayCalendar: Calendar,
+    onDisplayCalendarChange: (Calendar) -> Unit,
     onDateSelected: (Long) -> Unit
 ) {
-    val calendar = Calendar.getInstance()
-    calendar.set(currentYear, currentMonth, 1)
+    val currentYear = displayCalendar.get(Calendar.YEAR)
+    val currentMonth = displayCalendar.get(Calendar.MONTH)
     
-    val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val firstDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+    // 计算当月天数和偏移
+    val tempCal = displayCalendar.clone() as Calendar
+    tempCal.set(Calendar.DAY_OF_MONTH, 1)
+    val firstDayOfWeek = tempCal.get(Calendar.DAY_OF_WEEK)
+    val daysInMonth = tempCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    
+    // 计算需要显示的下月天数（补齐最后一行）
+    val totalCells = firstDayOfWeek - 1 + daysInMonth
+    val remainingCells = (7 - (totalCells % 7)) % 7
     
     Column {
         // 年月选择器
@@ -139,12 +166,9 @@ private fun CalendarView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = {
-                if (currentMonth == 0) {
-                    onMonthChange(11)
-                    onYearChange(currentYear - 1)
-                } else {
-                    onMonthChange(currentMonth - 1)
-                }
+                val newCal = displayCalendar.clone() as Calendar
+                newCal.add(Calendar.MONTH, -1)
+                onDisplayCalendarChange(newCal)
             }) {
                 Icon(Icons.Default.ChevronLeft, contentDescription = "上月")
             }
@@ -154,12 +178,9 @@ private fun CalendarView(
                 fontWeight = FontWeight.Bold
             )
             IconButton(onClick = {
-                if (currentMonth == 11) {
-                    onMonthChange(0)
-                    onYearChange(currentYear + 1)
-                } else {
-                    onMonthChange(currentMonth + 1)
-                }
+                val newCal = displayCalendar.clone() as Calendar
+                newCal.add(Calendar.MONTH, 1)
+                onDisplayCalendarChange(newCal)
             }) {
                 Icon(Icons.Default.ChevronRight, contentDescription = "下月")
             }
@@ -176,63 +197,80 @@ private fun CalendarView(
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.caption,
                     fontWeight = FontWeight.Bold,
-                    color = if (day == "日" || day == "六") 
-                        MaterialTheme.colors.error 
-                    else 
-                        MaterialTheme.colors.onSurface
+                    color = if (day == "日" || day == "六") MaterialTheme.colors.error else MaterialTheme.colors.onSurface
                 )
             }
         }
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        // 日期网格
-        val days = mutableListOf<Int?>()
-        // 填充月初空白
-        repeat(firstDayOfWeek - 1) { days.add(null) }
-        // 填充日期
-        for (i in 1..daysInMonth) { days.add(i) }
+        // 日期网格 - 包含上月末尾、当月、下月开头
+        val days = mutableListOf<CalendarDay>()
+        
+        // 上月末尾天数（灰色）
+        val prevCal = displayCalendar.clone() as Calendar
+        prevCal.add(Calendar.MONTH, -1)
+        val daysInPrevMonth = prevCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        for (i in (daysInPrevMonth - firstDayOfWeek + 2)..daysInPrevMonth) {
+            val cal = prevCal.clone() as Calendar
+            cal.set(Calendar.DAY_OF_MONTH, i)
+            days.add(CalendarDay(cal.timeInMillis, i, false, true))
+        }
+        
+        // 当月天数
+        for (i in 1..daysInMonth) {
+            val cal = displayCalendar.clone() as Calendar
+            cal.set(Calendar.DAY_OF_MONTH, i)
+            days.add(CalendarDay(cal.timeInMillis, i, true, false))
+        }
+        
+        // 下月开头天数（灰色，补齐）
+        if (remainingCells > 0) {
+            val nextCal = displayCalendar.clone() as Calendar
+            nextCal.add(Calendar.MONTH, 1)
+            for (i in 1..remainingCells) {
+                val cal = nextCal.clone() as Calendar
+                cal.set(Calendar.DAY_OF_MONTH, i)
+                days.add(CalendarDay(cal.timeInMillis, i, false, true))
+            }
+        }
         
         val rows = days.chunked(7)
         rows.forEach { row ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 row.forEach { day ->
-                    if (day !=
- null) {
-                        val dateCalendar = Calendar.getInstance()
-                        dateCalendar.set(currentYear, currentMonth, day)
-                        val dateMillis = dateCalendar.timeInMillis
-                        val isSelected = dateMillis == selectedDate
-                        val isToday = isToday(dateCalendar)
-                        
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(2.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        isSelected -> MaterialTheme.colors.primary
-                                        isToday -> MaterialTheme.colors.primary.copy(alpha = 0.2f)
-                                        else -> Color.Transparent
-                                    }
-                                )
-                                .clickable { onDateSelected(dateMillis) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = day.toString(),
-                                color = when {
-                                    isSelected -> Color.White
-                                    isToday -> MaterialTheme.colors.primary
-                                    else -> MaterialTheme.colors.onSurface
-                                },
-                                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
+                    val isSelected = isSameDay(day.timeInMillis, selectedDate)
+                    val isToday = isSameDay(day.timeInMillis, getTodayStart())
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .padding(2.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isSelected -> MaterialTheme.colors.primary
+                                    isToday && !day.isGray -> MaterialTheme.colors.primary.copy(alpha = 0.2f)
+                                    else -> Color.Transparent
+                                }
                             )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f).aspectRatio(1f))
+                            .then(
+                                if (!day.isGray) Modifier.clickable { onDateSelected(day.timeInMillis) }
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = day.day.toString(),
+                            color = when {
+                                isSelected -> Color.White
+                                day.isGray -> MaterialTheme.colors.onSurface.copy(alpha = 0.3f)
+                                isToday -> MaterialTheme.colors.primary
+                                else -> MaterialTheme.colors.onSurface
+                            },
+                            fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
+                        )
                     }
                 }
             }
@@ -241,12 +279,13 @@ private fun CalendarView(
     }
 }
 
-private fun isToday(calendar: Calendar): Boolean {
-    val today = Calendar.getInstance()
-    return calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-           calendar.get(Calendar.MONTH) == today.get(Calendar.MONTH) &&
-           calendar.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH)
-}
+// 日历日期数据类
+data class CalendarDay(
+    val timeInMillis: Long,
+    val day: Int,
+    val isCurrentMonth: Boolean,
+    val isGray: Boolean
+)
 
 @Composable
 private fun ModeSelector(selectedMode: DatePickerMode, onModeSelected: (DatePickerMode) -> Unit) {
@@ -336,8 +375,7 @@ private fun MonthDayPicker(selectedDays: List<Int>, onDaysChange: (List<Int>) ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 row.forEach { day ->
                     val isSelected = selectedDays.contains(day)
-                    DayChip(label = day.toString(), isSelected = isSelected, onClick = { onDaysChange(if (isSelected) selectedDays - day else (
-selectedDays + day).sorted()) }, modifier = Modifier.weight(1f))
+                    DayChip(label = day.toString(), isSelected = isSelected, onClick = { onDaysChange(if (isSelected) selectedDays - day else (selectedDays + day).sorted()) }, modifier = Modifier.weight(1f))
                 }
                 repeat(7 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
             }

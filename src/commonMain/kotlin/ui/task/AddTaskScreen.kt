@@ -3,10 +3,9 @@ package ui.task
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import data.model.Bank
 import data.model.AddTaskRequest
@@ -34,13 +35,26 @@ fun AddTaskScreen(
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit
 ) {
+    // 基础字段
     var title by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf<Long?>(null) }
     var repeatMode by remember { mutableStateOf<TaskRepeatMode>(TaskRepeatMode.OneTime) }
     var reminderTime by remember { mutableStateOf("") }
     var selectedBank by remember { mutableStateOf<Bank?>(null) }
     
+    // 起始截止日期
+    var startDate by remember { mutableStateOf<Long?>(null) }
+    var endDate by remember { mutableStateOf<Long?>(null) }
+    
+    // 参与频控
+    var hasFrequencyControl by remember { mutableStateOf(false) }
+    var totalCount by remember { mutableStateOf("") }
+    var cycleCount by remember { mutableStateOf(1) }
+    
+    // 弹窗状态
     var showDatePicker by remember { mutableStateOf(false) }
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
     var showBankPicker by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -68,7 +82,15 @@ fun AddTaskScreen(
                                 date = selectedDate,
                                 repeatType = repeatType,
                                 reminderTime = reminderTime.takeIf { it.isNotBlank() },
-                                bankId = selectedBank?.id
+                                bankId = selectedBank?.id,
+                                startDate = startDate,
+                                endDate = endDate,
+                                frequencyControl = if (hasFrequencyControl && repeatMode !is TaskRepeatMode.OneTime) {
+                                    FrequencyControl(
+                                        totalCount = totalCount.toIntOrNull() ?: 0,
+                                        cycleCount = cycleCount
+                                    )
+                                } else null
                             )
                             TaskRepository.getInstance().addTask(request)
                             onSaveClick()
@@ -87,6 +109,7 @@ fun AddTaskScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // 任务标题
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -99,6 +122,7 @@ fun AddTaskScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 执行日期
             DateSelector(
                 selectedDate = selectedDate,
                 repeatMode = repeatMode,
@@ -107,6 +131,18 @@ fun AddTaskScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 起始截止日期（仅重复任务显示）
+            if (repeatMode !is TaskRepeatMode.OneTime) {
+                StartEndDateSelector(
+                    startDate = startDate,
+                    endDate = endDate,
+                    onStartDateClick = { showStartDatePicker = true },
+                    onEndDateClick = { showEndDatePicker = true }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // 提醒时间
             TimeSelectorButton(
                 selectedTime = reminderTime,
                 onTimeSelected = { reminderTime = it }
@@ -114,6 +150,20 @@ fun AddTaskScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 参与频控（仅重复任务显示）
+            if (repeatMode !is TaskRepeatMode.OneTime) {
+                FrequencyControlSection(
+                    hasFrequencyControl = hasFrequencyControl,
+                    onFrequencyControlChange = { hasFrequencyControl = it },
+                    totalCount = totalCount,
+                    onTotalCountChange = { totalCount = it },
+                    cycleCount = cycleCount,
+                    onCycleCountChange = { cycleCount = it }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // 银行选择
             BankSelector(
                 selectedBank = selectedBank,
                 onBankSelected = { selectedBank = it },
@@ -121,6 +171,7 @@ fun AddTaskScreen(
             )
         }
 
+        // 日期选择弹窗
         if (showDatePicker) {
             DatePickerDialog(
                 onDismiss = { showDatePicker = false },
@@ -133,14 +184,190 @@ fun AddTaskScreen(
             )
         }
 
+        // 起始日期选择
+        if (showStartDatePicker) {
+            DatePickerDialog(
+                onDismiss = { showStartDatePicker = false },
+                onDateSelected = { date, _ ->
+                    startDate = date
+                    showStartDatePicker = false
+                },
+                initialDate = startDate
+            )
+        }
+
+        // 截止日期选择
+        if (showEndDatePicker) {
+            DatePickerDialog(
+                onDismiss = { showEndDatePicker = false },
+                onDateSelected = { date, _ ->
+                    endDate = date
+                    showEndDatePicker = false
+                },
+                initialDate = endDate
+            )
+        }
+
+        // 银行选择弹窗
         if (showBankPicker) {
             BankPickerDialog(
-                onDismiss = { showBankPicker = false },
+                onDismiss = { showBankPicker =
+ false },
                 onBankSelected = {
                     selectedBank = it
                     showBankPicker = false
                 }
             )
+        }
+    }
+}
+
+// 参与频控数据类
+data class FrequencyControl(
+    val totalCount: Int,
+    val cycleCount: Int
+)
+
+@Composable
+private fun StartEndDateSelector(
+    startDate: Long?,
+    endDate: Long?,
+    onStartDateClick: () -> Unit,
+    onEndDateClick: () -> Unit
+) {
+    Column {
+        Text("有效期", style = MaterialTheme.typography.subtitle2, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 起始日期
+            Surface(
+                modifier = Modifier.weight(1f).clickable(onClick = onStartDateClick),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.2f)),
+                elevation = 0.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colors.primary, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        startDate?.let { SimpleDateFormat("MM-dd", Locale.CHINA).format(Date(it)) } ?: "开始日期",
+                        style = MaterialTheme.typography.body2
+                    )
+                }
+            }
+            
+            // 截止日期
+            Surface(
+                modifier = Modifier.weight(1f).clickable(onClick = onEndDateClick),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.2f)),
+                elevation = 0.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null, tint = MaterialTheme.colors.error, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        endDate?.let { SimpleDateFormat("MM-dd", Locale.CHINA).format(Date(it)) } ?: "结束日期",
+                        style = MaterialTheme.typography.body2
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FrequencyControlSection(
+    hasFrequencyControl: Boolean,
+    onFrequencyControlChange: (Boolean) -> Unit,
+    totalCount: String,
+    onTotalCountChange: (String) -> Unit,
+    cycleCount: Int,
+    onCycleCountChange: (Int) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = 2.dp,
+        shape = RoundedCornerShape(12.dp),
+        backgroundColor = MaterialTheme.colors.surface
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("参与频控", style = MaterialTheme.typography.subtitle2, fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 是否有频控
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.weight(1f).clickable { onFrequencyControlChange(false) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = !hasFrequencyControl, onClick = { onFrequencyControlChange(false) })
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("无")
+                }
+                Row(
+                    modifier = Modifier.weight(1f).clickable { onFrequencyControlChange(true) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = hasFrequencyControl, onClick = { onFrequencyControlChange(true) })
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("有")
+                }
+            }
+            
+            // 频控配置
+            AnimatedVisibility(visible = hasFrequencyControl) {
+                Column {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // 活动周期内总次数
+                    OutlinedTextField(
+                        value = totalCount,
+                        onValueChange = { 
+                            // 只允许数字
+                            if (it.all { char -> char.isDigit() }) {
+                                onTotalCountChange(it)
+                            }
+                        },
+                        label = { Text("活动周期内总次数") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // 周期内参与次数
+                    Text("周期内参与次数", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1, 2, 3).forEach { count ->
+                            val isSelected = cycleCount == count
+                            OutlinedButton(
+                                onClick = { onCycleCountChange(count) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    backgroundColor = if (isSelected) MaterialTheme.colors.primary.copy(alpha = 0.1f) else MaterialTheme.colors.surface
+                                ),
+                                border = if (isSelected) ButtonDefaults.outlinedBorder.copy(
+                                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colors.primary)
+                                ) else ButtonDefaults.outlinedBorder
+                            ) {
+                                Text("$count次", color = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -175,10 +402,7 @@ private fun DateSelector(
         Surface(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
             shape = RoundedCornerShape(8.dp),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colors.onSurface.copy(alpha = 0.2f)
-            ),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.2f)),
             elevation = 0.dp
         ) {
             Row(
@@ -197,9 +421,7 @@ private fun DateSelector(
 private fun getDisplayText(selectedDate: Long?, repeatMode: TaskRepeatMode): String {
     return when (repeatMode) {
         is TaskRepeatMode.OneTime -> {
-            selectedDate?.let {
-                SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(it))
-            } ?: "选择日期"
+            selectedDate?.let { SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(it)) } ?: "选择日期"
         }
         is TaskRepeatMode.Simple -> when (repeatMode.type) {
             SimpleRepeatType.DAILY -> "每天重复"

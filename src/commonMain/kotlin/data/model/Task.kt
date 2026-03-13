@@ -123,10 +123,18 @@ data class Bank(
 /**
  * 添加任务请求
  */
+data class FrequencyControl(
+    val totalCount: Int,
+    val cycleCount: Int
+)
+
 data class AddTaskRequest(
     val title: String,
     val date: Long?,
     val repeatType: TaskRepeatType,
     val reminderTime: String?,
-    val bankId: String?
+    val bankId: String?,
+    val startDate: Long? = null,
+    val endDate: Long? = null,
+    val frequencyControl: FrequencyControl? = null
 )

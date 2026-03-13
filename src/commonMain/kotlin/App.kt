@@ -17,6 +17,8 @@ import ui.finance.FinanceScreen
 import ui.home.HomeScreen
 import ui.location.LocationPickerScreen
 import ui.navigation.BackHandler
+import ui.components.statusBarHeight
+import ui.components.navigationBarHeight
 import ui.settings.SettingsScreen
 import ui.task.AddTaskScreen
 import ui.task.TaskScreen
@@ -198,8 +200,15 @@ fun MainScreenContent(
                     )
                 }
             }
-        ) { paddingValues ->
-            Box(modifier = Modifier.padding(paddingValues)) {
+        ) { scaffoldPadding ->
+            val statusBarPadding = statusBarHeight()
+            val navBarPadding = navigationBarHeight()
+            
+            Box(
+                modifier = Modifier
+                    .padding(scaffoldPadding)
+                    .padding(top = statusBarPadding, bottom = navBarPadding)
+            ) {
                 when (currentTab) {
                     BottomNavTab.Home -> HomeScreen(
                         currentLocation = currentLocation,

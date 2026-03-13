@@ -170,7 +170,7 @@ object CreditCardRepository {
             bankName = "招商银行",
             cardName = "Car Card汽车卡",
             cardLevel = CreditCardLevel.GOLD,
-            cardOrganization = CardOrganization.UNIONPAY_MASTER,
+            cardOrganization = CardOrganization.UNIONPAY_MASTERCARD,
             currency = "人民币+美元",
             imageUrl = "https://kaku.51credit.com/cmb/ZSCC/",
             benefits = listOf("专享最高5%加油金返现", "分期购车享实惠", "异型卡实用美观"),

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.Bank
+import androidx.compose.foundation.background
 import data.model.TaskRepeatType
 import data.repository.BankRepository
 import ui.components.DatePickerDialog

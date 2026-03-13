@@ -20,50 +20,33 @@ import ui.settings.SettingsScreen
 import ui.task.AddTaskScreen
 import ui.task.TaskScreen
 
-/**
- * 应用主入口
- * 管理页面路由状态和动画
- */
 @Composable
 fun App() {
     MaterialTheme {
-        // 页面路由状态
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Auth) }
         var previousScreen by remember { mutableStateOf<Screen?>(null) }
         var currentLocation by remember { mutableStateOf(UserLocation("北京市", "北京市")) }
         var currentTab by remember { mutableStateOf(BottomNavTab.Home) }
-        
-        // 导航栈管理（用于返回）
         var navigationStack by remember { mutableStateOf<List<Screen>>(emptyList()) }
 
-        // 处理返回
         val handleBack: () -> Unit = {
             when {
                 navigationStack.isNotEmpty() -> {
-                    // 返回上一个页面
                     val lastScreen = navigationStack.last()
                     navigationStack = navigationStack.dropLast(1)
                     previousScreen = currentScreen
                     currentScreen = lastScreen
                 }
-                currentScreen is Screen.Home || 
-                currentScreen is Screen.Task || 
-                currentScreen is Screen.Finance || 
-                currentScreen is Screen.Settings -> {
-                    // 在主页面，不处理（让系统处理，如退出应用）
-                }
+                currentScreen is Screen.Main -> { }
                 else -> {
-                    // 其他情况返回首页
                     previousScreen = currentScreen
-                    currentScreen = Screen.Home
+                    currentScreen = Screen.Main(BottomNavTab.Home)
                 }
             }
         }
 
-        // 处理导航
         val navigateTo: (Screen) -> Unit = { targetScreen ->
             if (currentScreen != targetScreen) {
-                // 将当前页面加入栈（如果是二级页面）
                 if (currentScreen.isSecondaryScreen()) {
                     navigationStack = navigationStack + currentScreen
                 }
@@ -72,139 +55,94 @@ fun App() {
             }
         }
 
-        // 根据页面类型决定动画方向
         val isPush = when {
             previousScreen == null -> true
-            currentScreen.isSecondaryScreen() && !previousScreen.isSecondaryScreen() -> true
-            !currentScreen.isSecondaryScreen() && previousScreen.isSecondaryScreen() -> false
+            currentScreen.isSecondaryScreen() && !(previousScreen.isSecondaryScreen()) -> true
+            !(currentScreen.isSecondaryScreen()) && previousScreen.isSecondaryScreen() -> false
             else -> true
         }
 
-        AnimatedContent(
-            targetState = currentScreen,
-            transitionSpec = {
-                if (isPush) {
-                    // Push动画：新页面从右侧进入
-                    (slideInHorizontally(
-                        initialOffsetX = { fullWidth -> fullWidth },
-                        animationSpec = tween(300)
-                    ) + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(
-                        targetOffsetX = { fullWidth -> -fullWidth / 3 },
-                        animationSpec = tween(300)
-                    ) + fadeOut(tween(300)))
-                } else {
-                    // Pop动画：返回时从左侧进入
-                    (slideInHorizontally(
-                        initialOffsetX = { fullWidth -> -fullWidth / 3 },
-                        animationSpec = tween(300)
-                    ) + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(
-                        targetOffsetX = { fullWidth -> fullWidth },
-                        animationSpec = tween(300)
-                    ) + fadeOut(tween(300)))
-                }
-            },
-            label = "ScreenTransition"
-        ) { screen ->
-            when (screen) {
-                is Screen.Auth -> {
-                    AuthScreen(
-                        onLoginSuccess = { navigateTo(Screen.Home) }
-                    )
-                }
-                is Screen.Home,
-                is Screen.Task,
-                is Screen.Finance,
-                is Screen.Settings -> {
-                    MainScreen(
-                        currentTab = when (screen) {
-                            is Screen.Home -> BottomNavTab.Home
-                            is Screen.Task -> BottomNavTab.Task
-                            is Screen.Finance -> BottomNavTab.Finance
-                            is Screen.Settings -> BottomNavTab.Settings
-                            else -> BottomNavTab.Home
-                        },
+        if (currentScreen is Screen.Main) {
+            MainScreenContent(
+                currentTab = (currentScreen as Screen.Main).tab,
+                currentLocation = currentLocation,
+                onLocationChange = { currentLocation = it },
+                onTabChange = { tab ->
+                    currentTab = tab
+                    currentScreen = Screen.Main(tab)
+                },
+                onNavigateToAddTask = { navigateTo(Screen.AddTask) },
+                onLogout = { currentScreen = Screen.Auth },
+                onNavigateToBankCards = { navigateTo(Screen.BankCardList) }
+            )
+        } else {
+            AnimatedContent(
+                targetState = currentScreen,
+                transitionSpec = {
+                    if (isPush) {
+                        (slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300))) togetherWith
+                        (slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeOut(tween(300)))
+                    } else {
+                        (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeIn(tween(300))) togetherWith
+                        (slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)))
+                    }
+                },
+                label = "ScreenTransition"
+            ) { screen ->
+                when (screen) {
+                    is Screen.Auth -> AuthScreen(onLoginSuccess = { navigateTo(Screen.Main(BottomNavTab.Home)) })
+                    is Screen.Main -> MainScreenContent(
+                        currentTab = screen.tab,
                         currentLocation = currentLocation,
                         onLocationChange = { currentLocation = it },
                         onTabChange = { tab ->
                             currentTab = tab
-                            navigateTo(when (tab) {
-                                BottomNavTab.Home -> Screen.Home
-                                BottomNavTab.Task -> Screen.Task
-                                BottomNavTab.Finance -> Screen.Finance
-                                BottomNavTab.Settings -> Screen.Settings
-                            })
+                            currentScreen = Screen.Main(tab)
                         },
                         onNavigateToAddTask = { navigateTo(Screen.AddTask) },
-                        onLogout = { navigateTo(Screen.Auth) },
+                        onLogout = { currentScreen = Screen.Auth },
                         onNavigateToBankCards = { navigateTo(Screen.BankCardList) }
                     )
-                }
-                is Screen.AddTask -> {
-                    // 二级页面：添加返回手势处理
-                    BackHandler(onBack = handleBack)
-                    AddTaskScreen(
-                        onBackClick = handleBack,
-                        onSaveClick = {
-                            // 保存后返回
-                            handleBack()
-                        }
-                    )
-                }
-                is Screen.LocationPicker -> {
-                    BackHandler(onBack = handleBack)
-                    LocationPickerScreen(
-                        currentLocation = currentLocation,
-                        onLocationSelected = { location ->
-                            currentLocation = location
-                            handleBack()
-                        },
-                        onBackClick = handleBack
-                    )
-                }
-                is Screen.BankCardList -> {
-                    BackHandler(onBack = handleBack)
-                    BankCardListScreen(
-                        onBackClick = handleBack,
-                        onAddClick = { navigateTo(Screen.AddBankCard) }
-                    )
-                }
-                is Screen.AddBankCard -> {
-                    BackHandler(onBack = handleBack)
-                    AddBankCardScreen(
-                        onBackClick = handleBack,
-                        onSaveSuccess = {
-                            // 保存后返回银行卡列表
+                    is Screen.AddTask -> {
+                        BackHandler(onBack = handleBack)
+                        AddTaskScreen(onBackClick = handleBack, onSaveClick = handleBack)
+                    }
+                    is Screen.LocationPicker -> {
+                        BackHandler(onBack = handleBack)
+                        LocationPickerScreen(
+                            currentLocation = currentLocation,
+                            onLocationSelected = { location ->
+                                currentLocation = location
+                                handleBack()
+                            },
+                            onBackClick = handleBack
+                        )
+                    }
+                    is Screen.BankCardList -> {
+                        BackHandler(onBack = handleBack)
+                        BankCardListScreen(onBackClick = handleBack, onAddClick = { navigateTo(Screen.AddBankCard) })
+                    }
+                    is Screen.AddBankCard -> {
+                        BackHandler(onBack = handleBack)
+                        AddBankCardScreen(onBackClick = handleBack, onSaveSuccess = {
                             previousScreen = currentScreen
                             currentScreen = Screen.BankCardList
                             navigationStack = navigationStack.dropLast(1)
-                        }
-                    )
+                        })
+                    }
                 }
             }
         }
     }
 }
 
-/**
- * 判断是否为二级页面（需要返回按钮和手势）
- */
-private fun Screen?.isSecondaryScreen(): Boolean {
-    return when (this) {
-        is Screen.AddTask,
-        is Screen.LocationPicker,
-        is Screen.BankCardList,
-        is Screen.AddBankCard -> true
-        else -> false
-    }
+private fun Screen.isSecondaryScreen(): Boolean = when (this) {
+    is Screen.AddTask, is Screen.LocationPicker, is Screen.BankCardList, is Screen.AddBankCard -> true
+    else -> false
 }
 
-/**
- * 主屏幕（带底部导航）
- */
 @Composable
-fun MainScreen(
+fun MainScreenContent(
     currentTab: BottomNavTab,
     currentLocation: UserLocation,
     onLocationChange: (UserLocation) -> Unit,
@@ -222,9 +160,7 @@ fun MainScreen(
                 onLocationChange(location)
                 showLocationPicker = false
             },
-            onBackClick = {
-                showLocationPicker = false
-            }
+            onBackClick = { showLocationPicker = false }
         )
     } else {
         Scaffold(
@@ -243,7 +179,8 @@ fun MainScreen(
                         onClick = { onTabChange(BottomNavTab.Task) }
                     )
                     BottomNavigationItem(
-                        icon = { Icon(Icons.Default.AccountBalance, contentDescription = "财务") },
+                        icon = { Icon(Icons.Default
+.AccountBalance, contentDescription = "财务") },
                         label = { Text("财务") },
                         selected = currentTab == BottomNavTab.Finance,
                         onClick = { onTabChange(BottomNavTab.Finance) }
@@ -259,29 +196,14 @@ fun MainScreen(
         ) { paddingValues ->
             Box(modifier = Modifier.padding(paddingValues)) {
                 when (currentTab) {
-                    BottomNavTab.Home -> {
-                        HomeScreen(
-                            currentLocation = currentLocation,
-                            onLocationClick = { showLocationPicker = true },
-                            onNavigateToSettings = {
-                                onTabChange(BottomNavTab.Settings)
-                            }
-                        )
-                    }
-                    BottomNavTab.Task -> {
-                        TaskScreen(
-                            onAddTaskClick = onNavigateToAddTask
-                        )
-                    }
-                    BottomNavTab.Finance -> {
-                        FinanceScreen()
-                    }
-                    BottomNavTab.Settings -> {
-                        SettingsScreen(
-                            onLogout = onLogout,
-                            onNavigateToBankCards = onNavigateToBankCards
-                        )
-                    }
+                    BottomNavTab.Home -> HomeScreen(
+                        currentLocation = currentLocation,
+                        onLocationClick = { showLocationPicker = true },
+                        onNavigateToSettings = { onTabChange(BottomNavTab.Settings) }
+                    )
+                    BottomNavTab.Task -> TaskScreen(onAddTaskClick = onNavigateToAddTask)
+                    BottomNavTab.Finance -> FinanceScreen()
+                    BottomNavTab.Settings -> SettingsScreen(onLogout = onLogout, onNavigateToBankCards = onNavigateToBankCards)
                 }
             }
         }
@@ -290,11 +212,8 @@ fun MainScreen(
 
 sealed class Screen {
     object Auth : Screen()
-    object Home : Screen()
-    object Task : Screen()
+    data class Main(val tab: BottomNavTab) : Screen()
     object AddTask : Screen()
-    object Finance : Screen()
-    object Settings : Screen()
     object LocationPicker : Screen()
     object BankCardList : Screen()
     object AddBankCard : Screen()

@@ -16,11 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.*
 
-/**
- * 日期选择器组件
- * 支持：独立日期、简单重复、高级重复
- */
 @Composable
 fun DatePickerDialog(
     onDismiss: () -> Unit,
@@ -31,10 +29,13 @@ fun DatePickerDialog(
     var selectedDate by remember { mutableStateOf(initialDate ?: System.currentTimeMillis()) }
     var simpleRepeatType by remember { mutableStateOf(SimpleRepeatType.DAILY) }
     
-    // 高级重复状态
     var advancedWeekDays by remember { mutableStateOf<List<Int>>(emptyList()) }
     var advancedMonthDays by remember { mutableStateOf<List<Int>>(emptyList()) }
     var advancedMonths by remember { mutableStateOf<List<Int>>(emptyList()) }
+    
+    // 日历状态
+    var currentYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+    var currentMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -45,23 +46,23 @@ fun DatePickerDialog(
                     .fillMaxWidth()
                     .heightIn(max = 500.dp)
             ) {
-                // 模式选择标签
                 ModeSelector(
                     selectedMode = selectedMode,
                     onModeSelected = { selectedMode = it }
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                
                 Divider()
-                
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // 根据模式显示不同内容
                 when (selectedMode) {
                     DatePickerMode.ONE_TIME -> {
-                        OneTimeDatePicker(
+                        CalendarView(
                             selectedDate = selectedDate,
+                            currentYear = currentYear,
+                            currentMonth = currentMonth,
+                            onYearChange = { currentYear = it },
+                            onMonthChange = { currentMonth = it },
                             onDateSelected = { selectedDate = it }
                         )
                     }
@@ -92,12 +93,9 @@ fun DatePickerDialog(
                         DatePickerMode.SIMPLE_REPEAT -> TaskRepeatMode.Simple(simpleRepeatType)
                         DatePickerMode.ADVANCED_REPEAT -> {
                             when {
-                                advancedWeekDays.isNotEmpty() -> 
-                                    TaskRepeatMode.AdvancedWeekly(advancedWeekDays)
-                                advancedMonthDays.isNotEmpty() && advancedMonths.isEmpty() ->
-                                    TaskRepeatMode.AdvancedMonthly(advancedMonthDays)
-                                advancedMonths.isNotEmpty() && advancedMonthDays.isNotEmpty() ->
-                                    TaskRepeatMode.AdvancedYearly(advancedMonths, advancedMonthDays)
+                                advancedWeekDays.isNotEmpty() -> TaskRepeatMode.AdvancedWeekly(advancedWeekDays)
+                                advancedMonthDays.isNotEmpty() && advancedMonths.isEmpty() -> TaskRepeatMode.AdvancedMonthly(advancedMonthDays)
+                                advancedMonths.isNotEmpty() && advancedMonthDays.isNotEmpty() -> TaskRepeatMode.AdvancedYearly(advancedMonths, advancedMonthDays)
                                 else -> TaskRepeatMode.OneTime
                             }
                         }
@@ -118,455 +116,261 @@ fun DatePickerDialog(
     )
 }
 
-/**
- * 模式选择器
- */
 @Composable
-private fun ModeSelector(
-    selectedMode: DatePickerMode,
-    onModeSelected: (DatePickerMode) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        ModeTab(
-            text = "独立日期",
-            isSelected = selectedMode == DatePickerMode.ONE_TIME,
-            onClick = { onModeSelected(DatePickerMode.ONE_TIME) }
-        )
-        ModeTab(
-            text = "简单重复",
-            isSelected = selectedMode == DatePickerMode.SIMPLE_REPEAT,
-            onClick = { onModeSelected(DatePickerMode.SIMPLE_REPEAT) }
-        )
-        ModeTab(
-            text = "高级重复",
-            isSelected = selectedMode == DatePickerMode.ADVANCED_REPEAT,
-            onClick = { onModeSelected(DatePickerMode.ADVANCED_REPEAT) }
-        )
-    }
-}
-
-/**
- * 模式标签
- */
-@Composable
-private fun ModeTab(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.body2,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
-        if (isSelected) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .width(24.dp)
-                    .height(2.dp)
-                    .background(MaterialTheme.colors.primary)
-            )
-        }
-    }
-}
-
-/**
- * 独立日期选择器 - 简化版
- */
-@Composable
-private fun OneTimeDatePicker(
+private fun CalendarView(
     selectedDate: Long,
+    currentYear: Int,
+    currentMonth: Int,
+    onYearChange: (Int) -> Unit,
+    onMonthChange: (Int) -> Unit,
     onDateSelected: (Long) -> Unit
 ) {
-    // 简化的日期选择 - 使用预设选项
-    val today = System.currentTimeMillis()
-    val tomorrow = today + 24 * 60 * 60 * 1000
-    val nextWeek = today + 7 * 24 * 60 * 60 * 1000
+    val calendar = Calendar.getInstance()
+    calendar.set(currentYear, currentMonth, 1)
     
-    val presets = listOf(
-        Pair("今天", today),
-        Pair("明天", tomorrow),
-        Pair("一周后", nextWeek)
-    )
+    val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val firstDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
     
     Column {
-        Text(
-            text = "快速选择",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
+        // 年月选择器
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            presets.forEach { (label, date) ->
-                val isSelected = date == selectedDate
-                OutlinedButton(
-                    onClick = { onDateSelected(date) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        backgroundColor = if (isSelected) 
-                            MaterialTheme.colors.primary.copy(alpha = 0.1f) 
-                        else 
-                            MaterialTheme.colors.surface
-                    ),
-                    border = if (isSelected)
-                        ButtonDefaults.outlinedBorder.copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colors.primary)
-                        )
-                    else
-                        ButtonDefaults.outlinedBorder
-                ) {
-                    Text(label)
+            IconButton(onClick = {
+                if (currentMonth == 0) {
+                    onMonthChange(11)
+                    onYearChange(currentYear - 1)
+                } else {
+                    onMonthChange(currentMonth - 1)
                 }
+            }) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "上月")
+            }
+            Text(
+                text = "${currentYear}年${currentMonth + 1}月",
+                style = MaterialTheme.typography.subtitle1,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = {
+                if (currentMonth == 11) {
+                    onMonthChange(0)
+                    onYearChange(currentYear + 1)
+                } else {
+                    onMonthChange(currentMonth + 1)
+                }
+            }) {
+                Icon(Icons.Default.ChevronRight, contentDescription = "下月")
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         
-        // 显示当前选择的日期
-        val dateText = java.text.SimpleDateFormat("yyyy年MM月dd日", java.util.Locale.CHINA)
-            .format(java.util.Date(selectedDate))
-        Text(
-            text = "已选择: $dateText",
-            style = MaterialTheme.typography.body1,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-/**
- * 简单重复选择器
- */
-@Composable
-private fun SimpleRepeatPicker(
-    selectedType: SimpleRepeatType,
-    onTypeSelected: (SimpleRepeatType) -> Unit
-) {
-    val options = listOf(
-        Pair(SimpleRepeatType.DAILY, "每天"),
-        Pair(SimpleRepeatType.WEEKLY, "每周"),
-        Pair(SimpleRepeatType.MONTHLY, "每月"),
-        Pair(SimpleRepeatType.YEARLY, "每年")
-    )
-    
-    Column {
-        Text(
-            text = "重复频率",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
+        // 星期标题
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf("日", "一", "二", "三", "四", "五", "六").forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.caption,
+                    fontWeight = FontWeight.Bold,
+                    color = if (day == "日" || day == "六") 
+                        MaterialTheme.colors.error 
+                    else 
+                        MaterialTheme.colors.onSurface
+                )
+            }
+        }
         
         Spacer(modifier = Modifier.height(8.dp))
         
+        // 日期网格
+        val days = mutableListOf<Int?>()
+        // 填充月初空白
+        repeat(firstDayOfWeek - 1) { days.add(null) }
+        // 填充日期
+        for (i in 1..daysInMonth) { days.add(i) }
+        
+        val rows = days.chunked(7)
+        rows.forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                row.forEach { day ->
+                    if (day !=
+ null) {
+                        val dateCalendar = Calendar.getInstance()
+                        dateCalendar.set(currentYear, currentMonth, day)
+                        val dateMillis = dateCalendar.timeInMillis
+                        val isSelected = dateMillis == selectedDate
+                        val isToday = isToday(dateCalendar)
+                        
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .padding(2.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when {
+                                        isSelected -> MaterialTheme.colors.primary
+                                        isToday -> MaterialTheme.colors.primary.copy(alpha = 0.2f)
+                                        else -> Color.Transparent
+                                    }
+                                )
+                                .clickable { onDateSelected(dateMillis) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = day.toString(),
+                                color = when {
+                                    isSelected -> Color.White
+                                    isToday -> MaterialTheme.colors.primary
+                                    else -> MaterialTheme.colors.onSurface
+                                },
+                                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f).aspectRatio(1f))
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+    }
+}
+
+private fun isToday(calendar: Calendar): Boolean {
+    val today = Calendar.getInstance()
+    return calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+           calendar.get(Calendar.MONTH) == today.get(Calendar.MONTH) &&
+           calendar.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH)
+}
+
+@Composable
+private fun ModeSelector(selectedMode: DatePickerMode, onModeSelected: (DatePickerMode) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        ModeTab("独立日期", selectedMode == DatePickerMode.ONE_TIME) { onModeSelected(DatePickerMode.ONE_TIME) }
+        ModeTab("简单重复", selectedMode == DatePickerMode.SIMPLE_REPEAT) { onModeSelected(DatePickerMode.SIMPLE_REPEAT) }
+        ModeTab("高级重复", selectedMode == DatePickerMode.ADVANCED_REPEAT) { onModeSelected(DatePickerMode.ADVANCED_REPEAT) }
+    }
+}
+
+@Composable
+private fun ModeTab(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
+        Text(text, style = MaterialTheme.typography.body2, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, color = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
+        if (isSelected) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(modifier = Modifier.width(24.dp).height(2.dp).background(MaterialTheme.colors.primary))
+        }
+    }
+}
+
+@Composable
+private fun SimpleRepeatPicker(selectedType: SimpleRepeatType, onTypeSelected: (SimpleRepeatType) -> Unit) {
+    val options = listOf(Pair(SimpleRepeatType.DAILY, "每天"), Pair(SimpleRepeatType.WEEKLY, "每周"), Pair(SimpleRepeatType.MONTHLY, "每月"), Pair(SimpleRepeatType.YEARLY, "每年"))
+    Column {
+        Text("重复频率", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
+        Spacer(modifier = Modifier.height(8.dp))
         options.forEach { (type, label) ->
             val isSelected = type == selectedType
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onTypeSelected(type) }
-                    .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = { onTypeSelected(type) }
-                )
+            Row(modifier = Modifier.fillMaxWidth().clickable { onTypeSelected(type) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = isSelected, onClick = { onTypeSelected(type) })
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.body1
-                )
+                Text(label, style = MaterialTheme.typography.body1)
             }
         }
     }
 }
 
-/**
- * 高级重复选择器
- */
 @Composable
-private fun AdvancedRepeatPicker(
-    weekDays: List<Int>,
-    onWeekDaysChange: (List<Int>) -> Unit,
-    monthDays: List<Int>,
-    onMonthDaysChange: (List<Int>) -> Unit,
-    months: List<Int>,
-    onMonthsChange: (List<Int>) -> Unit
-) {
+private fun AdvancedRepeatPicker(weekDays: List<Int>, onWeekDaysChange: (List<Int>) -> Unit, monthDays: List<Int>, onMonthDaysChange: (List<Int>) -> Unit, months: List<Int>, onMonthsChange: (List<Int>) -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
-    
     Column {
-        // 子标签切换
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             listOf("每周", "每月", "每年").forEachIndexed { index, label ->
-                val isSelected = selectedTab == index
-                TextButton(
-                    onClick = { selectedTab = index },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = if (isSelected) 
-                            MaterialTheme.colors.primary 
-                        else 
-                            MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-                    )
-                ) {
-                    Text(
-                        text = label,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    )
+                TextButton(onClick = { selectedTab = index }, colors = ButtonDefaults.textButtonColors(contentColor = if (selectedTab == index) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface.copy(alpha = 0.6f))) {
+                    Text(label, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal)
                 }
             }
         }
-        
         Spacer(modifier = Modifier.height(8.dp))
-        
         when (selectedTab) {
-            0 -> WeekDayPicker(
-                selectedDays = weekDays,
-                onDaysChange = onWeekDaysChange
-            )
-            1 -> MonthDayPicker(
-                selectedDays = monthDays,
-                onDaysChange = onMonthDaysChange
-            )
-            2 -> YearMonthPicker(
-                selectedMonths = months,
-                onMonthsChange = onMonthsChange,
-                selectedDays = monthDays,
-                onDaysChange = onMonthDaysChange
-            )
+            0 -> WeekDayPicker(selectedDays = weekDays, onDaysChange = onWeekDaysChange)
+            1 -> MonthDayPicker(selectedDays = monthDays, onDaysChange = onMonthDaysChange)
+            2 -> YearMonthPicker(selectedMonths = months, onMonthsChange = onMonthsChange, selectedDays = monthDays, onDaysChange = onMonthDaysChange)
         }
     }
 }
 
-/**
- * 星期选择器
- */
 @Composable
-private fun WeekDayPicker(
-    selectedDays: List<Int>,
-    onDaysChange: (List<Int>) -> Unit
-) {
-    val weekDays = listOf(
-        Pair(1, "一"), Pair(2, "二"), Pair(3, "三"),
-        Pair(4, "四"), Pair(5, "五"), Pair(6, "六"), Pair(7, "日")
-    )
-    
+private fun WeekDayPicker(selectedDays: List<Int>, onDaysChange: (List<Int>) -> Unit) {
+    val weekDays = listOf(Pair(1, "一"), Pair(2, "二"), Pair(3, "三"), Pair(4, "四"), Pair(5, "五"), Pair(6, "六"), Pair(7, "日"))
     Column {
-        Text(
-            text = "选择每周的哪一天（可多选）",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
-        
+        Text("选择每周的哪一天（可多选）", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.height(8.dp))
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             weekDays.forEach { (day, label) ->
                 val isSelected = selectedDays.contains(day)
-                DayChip(
-                    label = label,
-                    isSelected = isSelected,
-                    onClick = {
-                        val newDays = if (isSelected) {
-                            selectedDays - day
-                        } else {
-                            selectedDays + day
-                        }
-                        onDaysChange(newDays.sorted())
-                    }
-                )
+                DayChip(label = label, isSelected = isSelected, onClick = { onDaysChange(if (isSelected) selectedDays - day else (selectedDays + day).sorted()) })
             }
         }
-        
-        // 快捷选择
         Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = { onDaysChange(listOf(1, 2, 3, 4, 5)) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("工作日")
-            }
-            OutlinedButton(
-                onClick = { onDaysChange(listOf(6, 7)) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("周末")
-            }
-            OutlinedButton(
-                onClick = { onDaysChange(listOf(1, 2, 3, 4, 5, 6, 7)) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("每天")
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { onDaysChange(listOf(1, 2, 3, 4, 5)) }, modifier = Modifier.weight(1f)) { Text("工作日") }
+            OutlinedButton(onClick = { onDaysChange(listOf(6, 7)) }, modifier = Modifier.weight(1f)) { Text("周末") }
+            OutlinedButton(onClick = { onDaysChange(listOf(1, 2, 3, 4, 5, 6, 7)) }, modifier = Modifier.weight(1f)) { Text("每天") }
         }
     }
 }
 
-/**
- * 日期选择器（每月几号）
- */
 @Composable
-private fun MonthDayPicker(
-    selectedDays: List<Int>,
-    onDaysChange: (List<Int>) -> Unit
-) {
+private fun MonthDayPicker(selectedDays: List<Int>, onDaysChange: (List<Int>) -> Unit) {
     Column {
-        Text(
-            text = "选择每月的哪一天（可多选）",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
-        
+        Text("选择每月的哪一天（可多选）", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.height(8.dp))
-        
-        // 使用网格显示1-31
         val rows = (1..31).chunked(7)
         rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 row.forEach { day ->
                     val isSelected = selectedDays.contains(day)
-                    DayChip(
-                        label = day.toString(),
-                        isSelected = isSelected,
-                        onClick = {
-                            val newDays = if (isSelected) {
-                                selectedDays - day
-                            } else {
-                                selectedDays + day
-                            }
-                            onDaysChange(newDays.sorted())
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                    DayChip(label = day.toString(), isSelected = isSelected, onClick = { onDaysChange(if (isSelected) selectedDays - day else (
+selectedDays + day).sorted()) }, modifier = Modifier.weight(1f))
                 }
-                // 填充剩余空间
-                repeat(7 - row.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                repeat(7 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
             }
             Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }
 
-/**
- * 年月选择器
- */
 @Composable
-private fun YearMonthPicker(
-    selectedMonths: List<Int>,
-    onMonthsChange: (List<Int>) -> Unit,
-    selectedDays: List<Int>,
-    onDaysChange: (List<Int>) -> Unit
-) {
-    val months = listOf(
-        Pair(1, "1月"), Pair(2, "2月"), Pair(3, "3月"),
-        Pair(4, "4月"), Pair(5, "5月"), Pair(6, "6月"),
-        Pair(7, "7月"), Pair(8, "8月"), Pair(9, "9月"),
-        Pair(10, "10月"), Pair(11, "11月"), Pair(12, "12月")
-    )
-    
+private fun YearMonthPicker(selectedMonths: List<Int>, onMonthsChange: (List<Int>) -> Unit, selectedDays: List<Int>, onDaysChange: (List<Int>) -> Unit) {
+    val months = (1..12).map { it to "${it}月" }
     Column {
-        Text(
-            text = "选择月份（可多选）",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
-        
+        Text("选择月份（可多选）", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.height(8.dp))
-        
-        // 月份网格
         val rows = months.chunked(4)
         rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (month, label) ->
                     val isSelected = selectedMonths.contains(month)
-                    DayChip(
-                        label = label,
-                        isSelected = isSelected,
-                        onClick = {
-                            val newMonths = if (isSelected) {
-                                selectedMonths - month
-                            } else {
-                                selectedMonths + month
-                            }
-                            onMonthsChange(newMonths.sorted())
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                    DayChip(label = label, isSelected = isSelected, onClick = { onMonthsChange(if (isSelected) selectedMonths - month else (selectedMonths + month).sorted()) }, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
         }
-        
         Spacer(modifier = Modifier.height(16.dp))
         Divider()
         Spacer(modifier = Modifier.height(16.dp))
-        
-        // 日期选择
-        Text(
-            text = "选择日期",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-        )
-        
+        Text("选择日期", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.height(8.dp))
-        
-        // 简化的日期选择
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(1, 15).forEach { day ->
                 val isSelected = selectedDays.contains(day)
-                OutlinedButton(
-                    onClick = {
-                        val newDays = if (isSelected) {
-                            selectedDays - day
-                        } else {
-                            selectedDays + day
-                        }
-                        onDaysChange(newDays.sorted())
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        backgroundColor = if (isSelected) 
-                            MaterialTheme.colors.primary.copy(alpha = 0.1f) 
-                        else 
-                            MaterialTheme.colors.surface
-                    )
-                ) {
+                OutlinedButton(onClick = { onDaysChange(if (isSelected) selectedDays - day else (selectedDays + day).sorted()) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(backgroundColor = if (isSelected) MaterialTheme.colors.primary.copy(alpha = 0.1f) else MaterialTheme.colors.surface)) {
                     Text("${day}日")
                 }
             }
@@ -574,51 +378,16 @@ private fun YearMonthPicker(
     }
 }
 
-/**
- * 日期芯片
- */
 @Composable
-private fun DayChip(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(
-                if (isSelected) 
-                    MaterialTheme.colors.primary 
-                else 
-                    MaterialTheme.colors.surface
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = if (isSelected) Color.White else MaterialTheme.colors.onSurface,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            style = MaterialTheme.typography.body2
-        )
+private fun DayChip(label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(40.dp).clip(CircleShape).background(if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.surface).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(text = label, color = if (isSelected) Color.White else MaterialTheme.colors.onSurface, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, style = MaterialTheme.typography.body2)
     }
 }
 
-// 数据类定义
-enum class DatePickerMode {
-    ONE_TIME,       // 独立日期
-    SIMPLE_REPEAT,  // 简单重复
-    ADVANCED_REPEAT // 高级重复
-}
+enum class DatePickerMode { ONE_TIME, SIMPLE_REPEAT, ADVANCED_REPEAT }
 
-enum class SimpleRepeatType {
-    DAILY,      // 每天
-    WEEKLY,     // 每周
-    MONTHLY,    // 每月
-    YEARLY      // 每年
-}
+enum class SimpleRepeatType { DAILY, WEEKLY, MONTHLY, YEARLY }
 
 sealed class TaskRepeatMode {
     object OneTime : TaskRepeatMode()

@@ -19,12 +19,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.*
-import data.repository.BankRepository
+import data.repository.TaskRepository
 
 @Composable
 fun TaskScreen(onAddTaskClick: () -> Unit) {
-    val tasks = remember { generateMockTasks() }
-    val taskGroups = remember { groupTasksByDate(tasks) }
+    // 使用TaskRepository的真实数据
+    val repository = remember { TaskRepository.getInstance() }
+    val tasks by repository.tasks.collectAsState()
+    
+    // 按日期分组
+    val taskGroups = remember(tasks) { groupTasksByDate(tasks) }
 
     Scaffold(
         topBar = {
@@ -38,14 +42,39 @@ fun TaskScreen(onAddTaskClick: () -> Unit) {
             }
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-            items(taskGroups) { group -> TaskGroupSection(group = group) }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
+        if (tasks.isEmpty()) {
+            // 空状态
+            EmptyTaskState(onAddTaskClick = onAddTaskClick)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+                items(taskGroups) { group -> TaskGroupSection(group = group) }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
+            }
         }
+    }
+}
+
+@Composable
+private fun EmptyTaskState(onAddTaskClick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colors.onSurface.copy(alpha = 0.3f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("还没有任务", style = MaterialTheme.typography.h6, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("点击右下角按钮添加您的第一个任务", style = MaterialTheme.typography.body2, color = MaterialTheme.colors.onSurface.copy(alpha = 0.4f))
     }
 }
 
@@ -121,27 +150,19 @@ fun BankTag(bank: Bank) {
     }
 }
 
-private fun generateMockTasks(): List<Task> {
-    val banks = BankRepository.getAllBanks()
-    return listOf(
-        Task("1", "工商银行信用卡还款", null, TaskRepeatType.Simple.Monthly, "09:00", banks.find { it.id == "1" }, false),
-        Task("2", "查看招商银行优惠活动", null, TaskRepeatType.Simple.Daily, "10:00", banks.find { it.id == "6" }, true),
-        Task("3", "建设银行积分兑换", null, TaskRepeatType.Simple.Weekly, "14:00", banks.find { it.id == "2" }, false),
-        Task("4", "农业银行账单查询", null, TaskRepeatType.Simple.Monthly, "09:30", banks.find { it.id == "3" }, false),
-        Task("5", "查看各银行立减金活动", null, TaskRepeatType.Simple.Daily, "08:00", null, false),
-        Task("6", "交通银行信用卡还款", null, TaskRepeatType.Simple.Monthly, "09:00", banks.find { it.id == "5" }, true),
-        Task("7", "浦发银行活动报名", null, TaskRepeatType.Simple.Weekly, "10:00", banks.find { it.id == "9" }, false),
-        Task("8", "中信银行积分查询", null, TaskRepeatType.Simple.Monthly, "15:00", banks.find { it.id == "10" }, false)
-    )
-}
-
 private fun groupTasksByDate(tasks: List<Task>): List<TaskGroup> {
+    if (tasks.isEmpty()) return emptyList()
+    
     val today = java.text.SimpleDateFormat("MM-dd", java.util.Locale.CHINA).format(java.util.Date())
     val completed = tasks.filter { it.isCompleted }
     val uncompleted = tasks.filter { !it.isCompleted }
-    return listOf(
-        TaskGroup("今天", uncompleted.take(3) + completed.take(2)),
-        TaskGroup("明天", uncompleted.drop(3).take(2)),
-        TaskGroup("后天", uncompleted.drop(5).take(2))
-    )
+    
+    return when {
+        tasks.size <= 5 -> listOf(TaskGroup("今天", tasks))
+        else -> listOf(
+            TaskGroup("今天", uncompleted.take(3) + completed.take(2)),
+            TaskGroup("明天", uncompleted.drop(3).take(2)),
+            TaskGroup("后天", uncompleted.drop(5).take(2))
+        )
+    }
 }

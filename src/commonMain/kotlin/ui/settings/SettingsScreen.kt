@@ -26,7 +26,8 @@ import ui.components.CenteredTopBar
  */
 @Composable
 fun SettingsScreen(
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onNavigateToBankCards: () -> Unit = {}
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
     val randomUsername = remember { AuthRepository.generateRandomUsername() }
@@ -122,6 +123,17 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // 设置项列表
+            SettingsSection(title = "我的账户") {
+                SettingsItem(
+                    icon = Icons.Default.CreditCard,
+                    title = "我的银行卡",
+                    subtitle = "管理您的银行卡",
+                    onClick = onNavigateToBankCards
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             SettingsSection(title = "通用设置") {
                 SettingsItem(
                     icon = Icons.Default.Notifications,

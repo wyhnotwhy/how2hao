@@ -9,6 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import data.model.UserLocation
 import ui.auth.AuthScreen
+import ui.bankcard.AddBankCardScreen
+import ui.bankcard.BankCardListScreen
 import ui.finance.FinanceScreen
 import ui.home.HomeScreen
 import ui.location.LocationPickerScreen
@@ -66,6 +68,9 @@ fun App() {
                     },
                     onLogout = {
                         currentScreen = Screen.Auth
+                    },
+                    onNavigateToBankCards = {
+                        currentScreen = Screen.BankCardList
                     }
                 )
             }
@@ -91,6 +96,26 @@ fun App() {
                     }
                 )
             }
+            is Screen.BankCardList -> {
+                BankCardListScreen(
+                    onBackClick = {
+                        currentScreen = Screen.Settings
+                    },
+                    onAddClick = {
+                        currentScreen = Screen.AddBankCard
+                    }
+                )
+            }
+            is Screen.AddBankCard -> {
+                AddBankCardScreen(
+                    onBackClick = {
+                        currentScreen = Screen.BankCardList
+                    },
+                    onSaveSuccess = {
+                        currentScreen = Screen.BankCardList
+                    }
+                )
+            }
         }
     }
 }
@@ -105,7 +130,8 @@ fun MainScreen(
     onLocationChange: (UserLocation) -> Unit,
     onTabChange: (BottomNavTab) -> Unit,
     onNavigateToAddTask: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToBankCards: () -> Unit = {}
 ) {
     var showLocationPicker by remember { mutableStateOf(false) }
 
@@ -172,7 +198,8 @@ fun MainScreen(
                     }
                     BottomNavTab.Settings -> {
                         SettingsScreen(
-                            onLogout = onLogout
+                            onLogout = onLogout,
+                            onNavigateToBankCards = onNavigateToBankCards
                         )
                     }
                 }
@@ -192,6 +219,8 @@ sealed class Screen {
     object Finance : Screen()
     object Settings : Screen()
     object LocationPicker : Screen()
+    object BankCardList : Screen()
+    object AddBankCard : Screen()
 }
 
 /**

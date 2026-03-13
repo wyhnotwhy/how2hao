@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.foundation.background
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,20 +62,21 @@ fun AddTaskScreen(
                 actions = {
                     TextButton(
                         onClick = {
+                            val currentRepeatMode = repeatMode
                             val request = AddTaskRequest(
                                 title = title,
                                 date = selectedDate,
-                                repeatType = when (repeatMode) {
-                                    is TaskRepeatMode.OneTime -> TaskRepeatType.OneTime(selectedDate ?: System.currentTimeMillis())
-                                    is TaskRepeatMode.Simple -> when (repeatMode.type) {
+                                repeatType = when (val mode = currentRepeatMode) {
+                                    mode is TaskRepeatMode.OneTime -> TaskRepeatType.OneTime(selectedDate ?: System.currentTimeMillis())
+                                    is TaskRepeatMode.Simple -> when (mode.type) {
                                         SimpleRepeatType.DAILY -> TaskRepeatType.Simple.Daily
                                         SimpleRepeatType.WEEKLY -> TaskRepeatType.Simple.Weekly
                                         SimpleRepeatType.MONTHLY -> TaskRepeatType.Simple.Monthly
                                         SimpleRepeatType.YEARLY -> TaskRepeatType.Simple.Yearly
                                     }
-                                    is TaskRepeatMode.AdvancedWeekly -> TaskRepeatType.AdvancedWeekly(repeatMode.days)
-                                    is TaskRepeatMode.AdvancedMonthly -> TaskRepeatType.AdvancedMonthly(repeatMode.days)
-                                    is TaskRepeatMode.AdvancedYearly -> TaskRepeatType.AdvancedYearly(repeatMode.months, repeatMode.days)
+                                    is TaskRepeatMode.AdvancedWeekly -> TaskRepeatType.AdvancedWeekly(mode.days)
+                                    is TaskRepeatMode.AdvancedMonthly -> TaskRepeatType.AdvancedMonthly(mode.days)
+                                    is TaskRepeatMode.AdvancedYearly -> TaskRepeatType.AdvancedYearly(mode.months, mode.days)
                                 },
                                 reminderTime = reminderTime.takeIf { it.isNotBlank() },
                                 bankId = selectedBank?.id
@@ -111,7 +113,8 @@ fun AddTaskScreen(
             DateSelector(
                 selectedDate = selectedDate,
                 repeatMode = repeatMode,
-                onClick = { showDatePicker = true }
+                onClick = {
+                            val currentRepeatMode = repeatMode showDatePicker = true }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -160,7 +163,7 @@ private fun DateSelector(
     repeatMode: TaskRepeatMode,
     onClick: () -> Unit
 ) {
-    val displayText = when (repeatMode) {
+    val displayText = when (val mode = currentRepeatMode) {
         is TaskRepeatMode.OneTime -> {
             selectedDate?.let {
                 SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(it))
@@ -247,7 +250,8 @@ private fun TimeSelector(
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 timeOptions.drop(4).forEach { time ->
-                    TimeChip(time = time, isSelected = selectedTime == time, onClick = { onTimeSelected(time) }, modifier = Modifier.weight(1f))
+                    TimeChip(time = time, isSelected = selectedTime == time, onClick = {
+                            val currentRepeatMode = repeatMode onTimeSelected(time) }, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -299,7 +303,8 @@ private fun BankSelector(selectedBank: Bank?, onBankSelected: (Bank?) -> Unit, o
                     }
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = { onBankSelected(null) }) {
+                IconButton(onClick = {
+                            val currentRepeatMode = repeatMode onBankSelected(null) }) {
                     Icon(Icons.Default.Close, contentDescription = "清除", tint = MaterialTheme.colors.onSurface.copy(alpha = 0.5f))
                 }
             }
@@ -340,7 +345,8 @@ private fun BankPickerDialog(onDismiss: () -> Unit, onBankSelected: (Bank) -> Un
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                 items(filteredBanks) { bank ->
-                    BankListItem(bank = bank, onClick = { onBankSelected(bank) })
+                    BankListItem(bank = bank, onClick = {
+                            val currentRepeatMode = repeatMode onBankSelected(bank) })
                 }
             }
         },

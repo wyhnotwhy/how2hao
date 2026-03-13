@@ -1,4 +1,5 @@
 plugins {
+    kotlin("plugin.serialization") version "2.1.10"
     kotlin("multiplatform") version "2.1.10"
     kotlin("plugin.compose") version "2.1.10"
     id("com.android.application") version "8.2.2"
@@ -39,6 +40,7 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.materialIconsExtended)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

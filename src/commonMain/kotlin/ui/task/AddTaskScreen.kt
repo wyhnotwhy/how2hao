@@ -3,6 +3,9 @@ package ui.task
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import data.model.Bank
 import data.model.AddTaskRequest
 import data.model.TaskRepeatType
+import data.model.FrequencyControl
 import data.repository.BankRepository
 import data.repository.TaskRepository
 import ui.components.DatePickerDialog
@@ -223,7 +227,6 @@ fun AddTaskScreen(
 }
 
 // 参与频控数据类
-data class FrequencyControl(
     val totalCount: Int,
     val cycleCount: Int
 )

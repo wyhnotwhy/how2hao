@@ -314,15 +314,13 @@ private fun BankCardItem(
                     Text(
                         text = "**** **** **** ",
                         color = Color.White.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.h6,
-                        letterSpacing = 2.dp
+                        style = MaterialTheme.typography.h6
                     )
                     Text(
                         text = card.cardLastFour,
                         color = Color.White,
                         style = MaterialTheme.typography.h6,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.dp
+                        fontWeight = FontWeight.Bold
                     )
                 }
 

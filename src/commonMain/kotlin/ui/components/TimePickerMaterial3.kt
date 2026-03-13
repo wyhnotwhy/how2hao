@@ -1,6 +1,8 @@
 package ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,7 +85,7 @@ fun TimeSelectorButton(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                imageVector = androidx.compose.material.icons.Icons.Default.Schedule,
+                imageVector = Icons.Default.Schedule,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )

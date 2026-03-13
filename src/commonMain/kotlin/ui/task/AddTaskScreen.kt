@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.Bank
+import data.model.AddTaskRequest
+import data.repository.TaskRepository
 import data.model.TaskRepeatType
 import data.repository.BankRepository
 import ui.components.DatePickerDialog
@@ -58,7 +60,28 @@ fun AddTaskScreen(
                 },
                 actions = {
                     TextButton(
-                        onClick = onSaveClick,
+                        onClick = {
+                            val request = AddTaskRequest(
+                                title = title,
+                                date = selectedDate,
+                                repeatType = when (repeatMode) {
+                                    is TaskRepeatMode.OneTime -> TaskRepeatType.OneTime(selectedDate ?: System.currentTimeMillis())
+                                    is TaskRepeatMode.Simple -> when (repeatMode.type) {
+                                        SimpleRepeatType.DAILY -> TaskRepeatType.Simple.Daily
+                                        SimpleRepeatType.WEEKLY -> TaskRepeatType.Simple.Weekly
+                                        SimpleRepeatType.MONTHLY -> TaskRepeatType.Simple.Monthly
+                                        SimpleRepeatType.YEARLY -> TaskRepeatType.Simple.Yearly
+                                    }
+                                    is TaskRepeatMode.AdvancedWeekly -> TaskRepeatType.AdvancedWeekly(repeatMode.days)
+                                    is TaskRepeatMode.AdvancedMonthly -> TaskRepeatType.AdvancedMonthly(repeatMode.days)
+                                    is TaskRepeatMode.AdvancedYearly -> TaskRepeatType.AdvancedYearly(repeatMode.months, repeatMode.days)
+                                },
+                                reminderTime = reminderTime.takeIf { it.isNotBlank() },
+                                bankId = selectedBank?.id
+                            )
+                            TaskRepository.getInstance().addTask(request)
+                            onSaveClick()
+                        },
                         enabled = title.isNotBlank()
                     ) {
                         Text("保存")

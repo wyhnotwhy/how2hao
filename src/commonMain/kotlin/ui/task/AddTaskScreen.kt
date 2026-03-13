@@ -483,8 +483,7 @@ private fun BankPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(on
-Click = { onDismiss() }) {
+            TextButton(onClick = { onDismiss() }) {
                 Text("取消")
             }
         },

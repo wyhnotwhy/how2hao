@@ -55,10 +55,11 @@ fun App() {
             }
         }
 
+        val prev = previousScreen
         val isPush = when {
-            previousScreen == null -> true
-            currentScreen.isSecondaryScreen() && !(previousScreen.isSecondaryScreen()) -> true
-            !(currentScreen.isSecondaryScreen()) && previousScreen.isSecondaryScreen() -> false
+            prev == null -> true
+            currentScreen.isSecondaryScreen() && !(prev.isSecondaryScreen()) -> true
+            !(currentScreen.isSecondaryScreen()) && prev.isSecondaryScreen() -> false
             else -> true
         }
 
@@ -179,8 +180,8 @@ fun MainScreenContent(
                         onClick = { onTabChange(BottomNavTab.Task) }
                     )
                     BottomNavigationItem(
-                        icon = { Icon(Icons.Default
-.AccountBalance, contentDescription = "财务") },
+                        icon = { Icon(Icons
+.Default.AccountBalance, contentDescription = "财务") },
                         label = { Text("财务") },
                         selected = currentTab == BottomNavTab.Finance,
                         onClick = { onTabChange(BottomNavTab.Finance) }

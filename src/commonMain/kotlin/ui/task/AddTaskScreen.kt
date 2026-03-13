@@ -1,5 +1,6 @@
 package ui.task
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,20 +10,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.foundation.background
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.Bank
 import data.model.AddTaskRequest
-import data.repository.TaskRepository
 import data.model.TaskRepeatType
 import data.repository.BankRepository
+import data.repository.TaskRepository
 import ui.components.DatePickerDialog
 import ui.components.TaskRepeatMode
 import ui.components.SimpleRepeatType
@@ -62,22 +61,11 @@ fun AddTaskScreen(
                 actions = {
                     TextButton(
                         onClick = {
-                            val currentRepeatMode = repeatMode
+                            val repeatType = convertRepeatModeToType(repeatMode, selectedDate)
                             val request = AddTaskRequest(
                                 title = title,
                                 date = selectedDate,
-                                repeatType = when (val mode = currentRepeatMode) {
-                                    mode is TaskRepeatMode.OneTime -> TaskRepeatType.OneTime(selectedDate ?: System.currentTimeMillis())
-                                    is TaskRepeatMode.Simple -> when (mode.type) {
-                                        SimpleRepeatType.DAILY -> TaskRepeatType.Simple.Daily
-                                        SimpleRepeatType.WEEKLY -> TaskRepeatType.Simple.Weekly
-                                        SimpleRepeatType.MONTHLY -> TaskRepeatType.Simple.Monthly
-                                        SimpleRepeatType.YEARLY -> TaskRepeatType.Simple.Yearly
-                                    }
-                                    is TaskRepeatMode.AdvancedWeekly -> TaskRepeatType.AdvancedWeekly(mode.days)
-                                    is TaskRepeatMode.AdvancedMonthly -> TaskRepeatType.AdvancedMonthly(mode.days)
-                                    is TaskRepeatMode.AdvancedYearly -> TaskRepeatType.AdvancedYearly(mode.months, mode.days)
-                                },
+                                repeatType = repeatType,
                                 reminderTime = reminderTime.takeIf { it.isNotBlank() },
                                 bankId = selectedBank?.id
                             )
@@ -113,8 +101,7 @@ fun AddTaskScreen(
             DateSelector(
                 selectedDate = selectedDate,
                 repeatMode = repeatMode,
-                onClick = {
-                            val currentRepeatMode = repeatMode showDatePicker = true }
+                onClick = { showDatePicker = true }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -157,44 +144,28 @@ fun AddTaskScreen(
     }
 }
 
+private fun convertRepeatModeToType(repeatMode: TaskRepeatMode, selectedDate: Long?): TaskRepeatType {
+    return when (repeatMode) {
+        is TaskRepeatMode.OneTime -> TaskRepeatType.OneTime(selectedDate ?: System.currentTimeMillis())
+        is TaskRepeatMode.Simple -> when (repeatMode.type) {
+            SimpleRepeatType.DAILY -> TaskRepeatType.Simple.Daily
+            SimpleRepeatType.WEEKLY -> TaskRepeatType.Simple.Weekly
+            SimpleRepeatType.MONTHLY -> TaskRepeatType.Simple.Monthly
+            SimpleRepeatType.YEARLY -> TaskRepeatType.Simple.Yearly
+        }
+        is TaskRepeatMode.AdvancedWeekly -> TaskRepeatType.AdvancedWeekly(repeatMode.days)
+        is TaskRepeatMode.AdvancedMonthly -> TaskRepeatType.AdvancedMonthly(repeatMode.days)
+        is TaskRepeatMode.AdvancedYearly -> TaskRepeatType.AdvancedYearly(repeatMode.months, repeatMode.days)
+    }
+}
+
 @Composable
 private fun DateSelector(
     selectedDate: Long?,
     repeatMode: TaskRepeatMode,
     onClick: () -> Unit
 ) {
-    val displayText = when (val mode = currentRepeatMode) {
-        is TaskRepeatMode.OneTime -> {
-            selectedDate?.let {
-                SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(it))
-            } ?: "选择日期"
-        }
-        is TaskRepeatMode.Simple -> {
-            when (repeatMode.type) {
-                SimpleRepeatType.DAILY -> "每天重复"
-                SimpleRepeatType.WEEKLY -> "每周重复"
-                SimpleRepeatType.MONTHLY -> "每月重复"
-                SimpleRepeatType.YEARLY -> "每年重复"
-            }
-        }
-        is TaskRepeatMode.AdvancedWeekly -> {
-            val days = repeatMode.days.sorted()
-            when {
-                days.size == 7 -> "每天重复"
-                days == listOf(1, 2, 3, 4, 5) -> "工作日重复"
-                days == listOf(6, 7) -> "周末重复"
-                else -> "每周${days.joinToString(",") { getWeekDayName(it) }}重复"
-            }
-        }
-        is TaskRepeatMode.AdvancedMonthly -> {
-            "每月${repeatMode.days.sorted().joinToString(",")}日重复"
-        }
-        is TaskRepeatMode.AdvancedYearly -> {
-            val months = repeatMode.months.sorted().joinToString(",") { "${it}月" }
-            val days = repeatMode.days.sorted().joinToString(",") { "${it}日" }
-            "每年${months}的${days}重复"
-        }
-    }
+    val displayText = getDisplayText(selectedDate, repeatMode)
     
     Column {
         Text("执行日期", style = MaterialTheme.typography.subtitle2, fontWeight = FontWeight.Medium)
@@ -222,6 +193,39 @@ private fun DateSelector(
     }
 }
 
+private fun getDisplayText(selectedDate: Long?, repeatMode: TaskRepeatMode): String {
+    return when (repeatMode) {
+        is TaskRepeatMode.OneTime -> {
+            selectedDate?.let {
+                SimpleDateFormat("yyyy年MM月dd日", Locale.CHINA).format(Date(it))
+            } ?: "选择日期"
+        }
+        is TaskRepeatMode.Simple -> when (repeatMode.type) {
+            SimpleRepeatType.DAILY -> "每天重复"
+            SimpleRepeatType.WEEKLY -> "每周重复"
+            SimpleRepeatType.MONTHLY -> "每月重复"
+            SimpleRepeatType.YEARLY -> "每年重复"
+        }
+        is TaskRepeatMode.AdvancedWeekly -> {
+            val days = repeatMode.days.sorted()
+            when {
+                days.size == 7 -> "每天重复"
+                days == listOf(1, 2, 3, 4, 5) -> "工作日重复"
+                days == listOf(6, 7) -> "周末重复"
+                else -> "每周${days.joinToString(",") { getWeekDayName(it) }}重复"
+            }
+        }
+        is TaskRepeatMode.AdvancedMonthly -> {
+            "每月${repeatMode.days.sorted().joinToString(",")}日重复"
+        }
+        is TaskRepeatMode.AdvancedYearly -> {
+            val months = repeatMode.months.sorted().joinToString(",") { "${it}月" }
+            val days = repeatMode.days.sorted().joinToString(",") { "${it}日" }
+            "每年${months}的${days}重复"
+        }
+    }
+}
+
 private fun getWeekDayName(day: Int): String {
     return when (day) {
         1 -> "一"; 2 -> "二"; 3 -> "三"; 4 -> "四"; 5 -> "五"; 6 -> "六"; 7 -> "日"
@@ -243,15 +247,13 @@ private fun TimeSelector(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 timeOptions.take(4).forEach { time ->
-                    TimeChip(time = time, isSelected = selectedTime == time, onClick
- = { onTimeSelected(time) }, modifier = Modifier.weight(1f))
+                    TimeChip(time = time, isSelected = selectedTime == time, onClick = { onTimeSelected(time) }, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 timeOptions.drop(4).forEach { time ->
-                    TimeChip(time = time, isSelected = selectedTime == time, onClick = {
-                            val currentRepeatMode = repeatMode onTimeSelected(time) }, modifier = Modifier.weight(1f))
+                    TimeChip(time = time, isSelected = selectedTime == time, onClick = { onTimeSelected(time) }, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -303,8 +305,7 @@ private fun BankSelector(selectedBank: Bank?, onBankSelected: (Bank?) -> Unit, o
                     }
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = {
-                            val currentRepeatMode = repeatMode onBankSelected(null) }) {
+                IconButton(onClick = { onBankSelected(null) }) {
                     Icon(Icons.Default.Close, contentDescription = "清除", tint = MaterialTheme.colors.onSurface.copy(alpha = 0.5f))
                 }
             }
@@ -345,8 +346,7 @@ private fun BankPickerDialog(onDismiss: () -> Unit, onBankSelected: (Bank) -> Un
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                 items(filteredBanks) { bank ->
-                    BankListItem(bank = bank, onClick = {
-                            val currentRepeatMode = repeatMode onBankSelected(bank) })
+                    BankListItem(bank = bank, onClick = { onBankSelected(bank) })
                 }
             }
         },
